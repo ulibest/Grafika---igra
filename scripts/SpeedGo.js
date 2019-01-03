@@ -267,7 +267,7 @@ function handleLoadedWorld(data) {
 //
 function loadWorld() {
   var request = new XMLHttpRequest();
-  request.open("GET", "./assets/world – kopija.txt");
+  request.open("GET", "./assets/world.txt");
   request.onreadystatechange = function () {
     if (request.readyState == 4) {  //stanje 4 pomeni da je bla datoteka uspešno prenesena
       handleLoadedWorld(request.responseText);
