@@ -6,11 +6,25 @@ var shaderProgram;
 // Buffers
 var worldVertexPositionBuffer = null;
 var worldVertexTextureCoordBuffer = null;
+// Buffers
+var teapotVertexPositionBuffer;
+var teapotVertexNormalBuffer;
+var teapotVertexTextureCoordBuffer;
+var teapotVertexIndexBuffer;
 
 // Model-view and projection matrix and model-view matrix stack
 var mvMatrixStack = [];
 var mvMatrix = mat4.create();
 var pMatrix = mat4.create();
+
+// Variables for storing current rotation of cube
+var rotationCubeX = 0;
+var rotationCubeY = 0;
+var rotationCubeZ = 0;
+
+// Variables for rotation velocity of cube
+var rotationVelocityCubeX = 0;
+var rotationVelocityCubeY = 0;
 
 // Variables for storing textures
 var wallTexture;
@@ -219,6 +233,75 @@ function handleTextureLoaded(texture) {
   texturesLoaded = true;
 }
 
+function handleTextureLoaded(texture) {
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+  // Third texture usus Linear interpolation approximation with nearest Mipmap selection
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  // when texture loading is finished we can draw scene.
+  texturesLoaded += 1;
+}
+
+//
+// handleLoadedTeapot
+//
+// Handle loaded teapot
+//
+function handleLoadedTeapot(teapotData) {
+  // Pass the normals into WebGL
+  teapotVertexNormalBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexNormals), gl.STATIC_DRAW);
+  teapotVertexNormalBuffer.itemSize = 3;
+  teapotVertexNormalBuffer.numItems = teapotData.vertexNormals.length / 3;
+
+  // Pass the texture coordinates into WebGL
+  teapotVertexTextureCoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexTextureCoords), gl.STATIC_DRAW);
+  teapotVertexTextureCoordBuffer.itemSize = 2;
+  teapotVertexTextureCoordBuffer.numItems = teapotData.vertexTextureCoords.length / 2;
+
+  // Pass the vertex positions into WebGL
+  teapotVertexPositionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexPositions), gl.STATIC_DRAW);
+  teapotVertexPositionBuffer.itemSize = 3;
+  teapotVertexPositionBuffer.numItems = teapotData.vertexPositions.length / 3;
+
+  // Pass the indices into WebGL
+  teapotVertexIndexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(teapotData.indices), gl.STATIC_DRAW);
+  teapotVertexIndexBuffer.itemSize = 1;
+  teapotVertexIndexBuffer.numItems = teapotData.indices.length;
+
+  document.getElementById("loadingtext").textContent = "";
+}
+
+//
+// loadTeapot
+//
+// Load teapot
+//
+function loadTeapot() {
+  var request = new XMLHttpRequest();
+  request.open("GET", "./assets/Teapot.json");
+  request.onreadystatechange = function () {
+    if (request.readyState == 4) {
+      handleLoadedTeapot(JSON.parse(request.responseText));
+    }
+  }
+  request.send();
+}
+
 //
 // handleLoadedWorld
 //
@@ -259,7 +342,6 @@ function handleLoadedWorld(data) {
 
   document.getElementById("loadingtext").textContent = "";
 }
-
 //
 // loadWorld
 //
@@ -287,6 +369,10 @@ function drawScene() {
   // Clear the canvas before we start drawing on it.
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+//  if (teapotVertexPositionBuffer == null || teapotVertexNormalBuffer == null || teapotVertexTextureCoordBuffer == null || teapotVertexIndexBuffer == null) {
+//    return;
+//  }
+
   // If buffers are empty we stop loading the application.
   if (worldVertexTextureCoordBuffer == null || worldVertexPositionBuffer == null) {
     return;
@@ -308,6 +394,12 @@ function drawScene() {
   mat4.rotate(mvMatrix, degToRad(-yaw), [0, 1, 0]);
   mat4.translate(mvMatrix, [-xPosition, -yPosition, -zPosition]);
 
+
+  // Rotate before we draw.
+  // mat4.rotate(mvMatrix, degToRad(rotationCubeX), [1, 0, 0]);
+  //mat4.rotate(mvMatrix, degToRad(rotationCubeY), [0, 1, 0]);
+  mat4.rotate(mvMatrix, degToRad(rotationCubeZ), [0, 0, 1]);
+
   // Activate textures
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, wallTexture);
@@ -325,6 +417,27 @@ function drawScene() {
   // Draw the cube.
   setMatrixUniforms();
   gl.drawArrays(gl.TRIANGLES, 0, worldVertexPositionBuffer.numItems);
+
+
+    // Set the vertex positions attribute for the teapot vertices.
+  gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+  gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, teapotVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+  // Set the texture coordinates attribute for the vertices.
+  gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexTextureCoordBuffer);
+  gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, teapotVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+  // Set the normals attribute for the vertices.
+  gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+  gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, teapotVertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+  // Set the index for the vertices.
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotVertexIndexBuffer);
+  setMatrixUniforms();
+
+  // Draw the teapot
+  gl.drawElements(gl.TRIANGLES, teapotVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+
 }
 
 //
@@ -347,6 +460,9 @@ function animate() {
 
     yaw += yawRate * elapsed;
     pitch += pitchRate * elapsed;
+
+    rotationCubeX += (rotationVelocityCubeX * elapsed) / 1000.0;
+    rotationCubeY += (rotationVelocityCubeY * elapsed) / 1000.0;
 
   }
   lastTime = timeNow;
@@ -388,22 +504,26 @@ function handleKeys() {
   if (currentlyPressedKeys[37] || currentlyPressedKeys[65]) {
     // Left cursor key or A
     yawRate = 0.1;
+    rotationVelocityCubeY -= 1;
   } else if (currentlyPressedKeys[39] || currentlyPressedKeys[68]) {
     // Right cursor key or D
     yawRate = -0.1;
   } else {
     yawRate = 0;
   }
+  rotationVelocityCubeY += 1;
 
   if (currentlyPressedKeys[38] || currentlyPressedKeys[87]) {
     // Up cursor key or W
     speed = 0.003;
+    rotationVelocityCubeX -= 1;
   } else if (currentlyPressedKeys[40] || currentlyPressedKeys[83]) {
     // Down cursor key
     speed = -0.003;
   } else {
     speed = 0;
   }
+  rotationVelocityCubeX += 1;
 }
 
 //
@@ -419,7 +539,7 @@ function start() {
 
   // Only continue if WebGL is available and working
   if (gl) {
-    gl.clearColor(0.5, 0.75, 1.0, 1.0);                     // Set clear color to black, fully opaque
+    gl.clearColor(0.5, 0.75, 1.0, 1.0);                   // Set clear color to black, fully opaque
     gl.clearDepth(1.0);                                     // Clear everything
     gl.enable(gl.DEPTH_TEST);                               // Enable depth testing
     gl.depthFunc(gl.LEQUAL);                                // Near things obscure far things
@@ -433,6 +553,7 @@ function start() {
 
     // Initialise world objects
     loadWorld();
+    loadTeapot();
 
     // Bind keyboard handling functions to document handlers
     document.onkeydown = handleKeyDown;
